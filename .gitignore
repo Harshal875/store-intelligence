@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Data files - DO NOT commit dataset
+data/
+*.mp4
+*.avi
+*.mov
+*.zip
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Docker volumes
+pgdata/
+redis_data/
+
+# Model weights
+*.pt
+*.onnx
+*.engine
+weights/

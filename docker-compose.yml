@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  # ─── PostgreSQL ────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: store_intel
+      POSTGRES_PASSWORD: store_intel_2026
+      POSTGRES_DB: store_intelligence
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U store_intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (pub/sub for live dashboard) ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Store Intelligence API ────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://store_intel:store_intel_2026@postgres:5432/store_intelligence
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ─── Detection Pipeline (run on demand) ────────────────────────────────
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.pipeline
+    environment:
+      API_URL: http://api:8000
+      CONFIDENCE_THRESHOLD: "0.3"
+      BATCH_SIZE: "100"
+    volumes:
+      - ./data:/data:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    profiles:
+      - pipeline  # Only runs when explicitly invoked
+
+volumes:
+  pgdata:

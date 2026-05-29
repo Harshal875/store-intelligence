@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Intelligence - Live Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e7e9ea;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #2f3336;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 24px;
+            color: #7c5cfc;
+            margin-bottom: 8px;
+        }
+        .header .status {
+            font-size: 14px;
+            color: #71767b;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            background: #f44;
+        }
+        .status-dot.connected { background: #00ba7c; }
+
+        .store-selector {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .store-selector select {
+            background: #1d2226;
+            color: #e7e9ea;
+            border: 1px solid #2f3336;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background: #1d2226;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.3s;
+        }
+        .metric-card.updated {
+            border-color: #7c5cfc;
+        }
+        .metric-card .label {
+            font-size: 12px;
+            color: #71767b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .metric-card .value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #e7e9ea;
+        }
+        .metric-card .change {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .change.positive { color: #00ba7c; }
+        .change.negative { color: #f44; }
+
+        .events-feed {
+            background: #1d2226;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .events-feed h3 {
+            font-size: 14px;
+            color: #71767b;
+            margin-bottom: 12px;
+        }
+        .event-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #2f3336;
+            font-size: 13px;
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .event-item .event-type {
+            background: #2f3336;
+            color: #7c5cfc;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            min-width: 100px;
+            text-align: center;
+        }
+        .event-item .event-type.entry { background: #0d3320; color: #00ba7c; }
+        .event-item .event-type.exit { background: #3d1515; color: #f44; }
+        .event-item .event-type.dwell { background: #1a2744; color: #5da3fa; }
+        .event-item .event-type.billing { background: #3d2e15; color: #f5a623; }
+        .event-detail {
+            margin-left: 12px;
+            color: #71767b;
+        }
+        .event-time {
+            margin-left: auto;
+            color: #71767b;
+            font-size: 11px;
+        }
+
+        .funnel-container {
+            background: #1d2226;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .funnel-container h3 {
+            font-size: 14px;
+            color: #71767b;
+            margin-bottom: 16px;
+        }
+        .funnel-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .funnel-bar .stage-name {
+            width: 120px;
+            font-size: 13px;
+        }
+        .funnel-bar .bar-container {
+            flex: 1;
+            height: 28px;
+            background: #2f3336;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0 12px;
+        }
+        .funnel-bar .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #7c5cfc, #5da3fa);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .funnel-bar .count {
+            width: 60px;
+            text-align: right;
+            font-size: 14px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Store Intelligence Dashboard</h1>
+        <div class="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+    </div>
+
+    <div class="store-selector">
+        <select id="storeSelect" onchange="connectToStore(this.value)">
+            <option value="STORE_BLR_002">STORE_BLR_002</option>
+            <option value="STORE_MUM_001">STORE_MUM_001</option>
+            <option value="STORE_DEL_003">STORE_DEL_003</option>
+            <option value="STORE_BLR_001">STORE_BLR_001</option>
+            <option value="STORE_CHN_001">STORE_CHN_001</option>
+        </select>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="metric-card" id="card-visitors">
+            <div class="label">Unique Visitors</div>
+            <div class="value" id="metric-visitors">--</div>
+            <div class="change" id="change-visitors"></div>
+        </div>
+        <div class="metric-card" id="card-conversion">
+            <div class="label">Conversion Rate</div>
+            <div class="value" id="metric-conversion">--</div>
+            <div class="change" id="change-conversion"></div>
+        </div>
+        <div class="metric-card" id="card-occupancy">
+            <div class="label">Current Occupancy</div>
+            <div class="value" id="metric-occupancy">--</div>
+        </div>
+        <div class="metric-card" id="card-queue">
+            <div class="label">Queue Depth</div>
+            <div class="value" id="metric-queue">--</div>
+        </div>
+        <div class="metric-card" id="card-abandonment">
+            <div class="label">Abandonment Rate</div>
+            <div class="value" id="metric-abandonment">--</div>
+        </div>
+        <div class="metric-card" id="card-avgdwell">
+            <div class="label">Avg Dwell (all zones)</div>
+            <div class="value" id="metric-avgdwell">--</div>
+        </div>
+    </div>
+
+    <div class="funnel-container">
+        <h3>Conversion Funnel (Today)</h3>
+        <div id="funnel-bars"></div>
+    </div>
+
+    <div class="events-feed" style="margin-top: 20px;">
+        <h3>Live Event Feed</h3>
+        <div id="eventsFeed"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
