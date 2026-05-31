@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import csv
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as _date
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import insert as sql_insert, text
 
 from app.database import POSTransaction
 
@@ -38,6 +40,9 @@ async def load_pos_from_csv(csv_path: str, db: AsyncSession) -> int:
                     try:
                         dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M:%S")
                         dt = dt.replace(tzinfo=timezone.utc)
+                        # Shift to today so conversion queries (filtered by today) find them
+                        today = datetime.now(timezone.utc).date()
+                        dt = dt.replace(year=today.year, month=today.month, day=today.day)
                     except ValueError:
                         continue
 
@@ -54,15 +59,25 @@ async def load_pos_from_csv(csv_path: str, db: AsyncSession) -> int:
                     amount = 0.0
                 invoice_data[invoice]["amount"] += amount
 
-        for invoice, data in invoice_data.items():
-            txn = POSTransaction(
-                transaction_id=invoice,
-                store_id=data["store_id"],
-                timestamp=data["timestamp"],
-                basket_value_inr=round(data["amount"], 2),
-            )
-            db.add(txn)
-            loaded += 1
+        rows = [
+            {
+                "transaction_id": invoice,
+                "store_id": data["store_id"],
+                "timestamp": data["timestamp"],
+                "basket_value_inr": round(data["amount"], 2),
+            }
+            for invoice, data in invoice_data.items()
+        ]
+        if rows:
+            # Upsert: update timestamp/amount if invoice already exists (handles re-runs / date shifts)
+            db_url = str(db.get_bind().url) if hasattr(db, "get_bind") else ""
+            for row in rows:
+                stmt = pg_insert(POSTransaction).values(**row).on_conflict_do_update(
+                    index_elements=["transaction_id"],
+                    set_={"timestamp": row["timestamp"], "basket_value_inr": row["basket_value_inr"]},
+                )
+                await db.execute(stmt)
+                loaded += 1
 
         if loaded:
             await db.commit()
