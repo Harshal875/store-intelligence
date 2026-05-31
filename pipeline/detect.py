@@ -21,6 +21,16 @@ from typing import Optional
 
 import cv2
 import numpy as np
+
+# Compatibility patch: torch >= 2.6 changed weights_only default to True,
+# which breaks ultralytics < 8.3 when loading .pt model files.
+import torch as _torch
+_torch_load_orig = _torch.load
+def _torch_load_compat(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _torch_load_orig(*args, **kwargs)
+_torch.load = _torch_load_compat
+
 from ultralytics import YOLO
 
 from config import PipelineConfig, StoreConfig

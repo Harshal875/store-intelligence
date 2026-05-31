@@ -36,7 +36,7 @@ done
 # Download model if not present
 if [ ! -f "$MODEL" ]; then
     echo "[DOWNLOAD] Fetching YOLOv8s model weights..."
-    python -c "from ultralytics import YOLO; YOLO('yolov8s.pt')"
+    python -c "import torch; _o=torch.load; torch.load=lambda *a,**kw: _o(*a,**{**{'weights_only':False},**kw}); from ultralytics import YOLO; YOLO('yolov8s.pt')"
 fi
 
 # Load store layout and POS transactions
