@@ -271,13 +271,12 @@ class ByteTracker:
         unmatched_cols = set(range(cost_matrix.shape[1]))
         
         for r, c in zip(row_ind, col_ind):
-            if cost_matrix[r, c] <= (1.0 - thresh + 1.0):  # Convert back: iou >= thresh equivalent
-                # Actually: cost <= 1 - match_thresh means IoU >= match_thresh
-                # But we want to accept more matches, so use a relaxed threshold
-                if cost_matrix[r, c] < 1.0:  # Any positive IoU
-                    matched.append((r, c))
-                    unmatched_rows.discard(r)
-                    unmatched_cols.discard(c)
+            # cost = 1 - IoU; accept match if cost <= thresh (i.e. IoU >= 1 - thresh)
+            # With thresh=0.8: accept matches with IoU >= 0.2
+            if cost_matrix[r, c] <= thresh:
+                matched.append((r, c))
+                unmatched_rows.discard(r)
+                unmatched_cols.discard(c)
         
         return matched, list(unmatched_rows), list(unmatched_cols)
 

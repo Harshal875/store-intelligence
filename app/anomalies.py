@@ -37,6 +37,9 @@ async def detect_anomalies(
     last_event_time = result.scalar()
 
     if last_event_time:
+        # Ensure timezone-aware (SQLite returns naive datetimes)
+        if last_event_time.tzinfo is None:
+            last_event_time = last_event_time.replace(tzinfo=timezone.utc)
         time_since_last = (now - last_event_time).total_seconds()
         if time_since_last > 600:  # 10 minutes
             anomalies.append(Anomaly(

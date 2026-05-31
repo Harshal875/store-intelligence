@@ -20,5 +20,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Pipeline code
 COPY pipeline/ .
+RUN chmod +x run.sh
 
-ENTRYPOINT ["python", "detect.py"]
+CMD ["/bin/bash", "run.sh"]

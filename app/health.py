@@ -56,6 +56,9 @@ async def get_health(db: AsyncSession) -> HealthResponse:
             status = "NO_DATA"
             has_stale = True
         else:
+            # Ensure timezone-aware (SQLite returns naive datetimes)
+            if last_event.tzinfo is None:
+                last_event = last_event.replace(tzinfo=timezone.utc)
             time_since = (now - last_event).total_seconds()
             if time_since > 600:  # 10 minutes
                 status = "STALE_FEED"

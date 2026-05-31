@@ -5,7 +5,7 @@
 set -e
 
 DATA_DIR="${1:-/data}"
-API_URL="${2:-http://localhost:8000}"
+API_URL="${2:-${API_URL:-http://localhost:8000}}"
 MODEL="${3:-yolov8s.pt}"
 STORE_ID="ST1008"
 

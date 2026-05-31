@@ -40,42 +40,47 @@ def load_pos_transactions(csv_path: str, api_url: str, store_id: str = "ST1008")
 
     transactions = []
     seen_invoices = set()
+    # Aggregate total_amount per invoice (CSV has multiple line items per invoice)
+    invoice_data = {}
 
     with open(csv_path, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         for row in reader:
             invoice = row.get("invoice_number", "").strip()
-            if not invoice or invoice in seen_invoices:
-                continue
-            seen_invoices.add(invoice)
-
-            # Parse date + time
-            date_str = row.get("order_date", "").strip()
-            time_str = row.get("order_time", "").strip()
-            
-            try:
-                # Format: 10-04-2026 and 16:55:36
-                dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M:%S")
-                dt = dt.replace(tzinfo=timezone.utc)
-                timestamp = dt.isoformat()
-            except ValueError:
-                print(f"  [WARN] Cannot parse date: {date_str} {time_str}")
+            if not invoice:
                 continue
 
-            # Total amount per invoice - sum up total_amount for this invoice
+            if invoice not in invoice_data:
+                date_str = row.get("order_date", "").strip()
+                time_str = row.get("order_time", "").strip()
+                try:
+                    dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M:%S")
+                    dt = dt.replace(tzinfo=timezone.utc)
+                    timestamp = dt.isoformat()
+                except ValueError:
+                    print(f"  [WARN] Cannot parse date: {date_str} {time_str}")
+                    continue
+
+                store = row.get("store_id", store_id).strip() or store_id
+                invoice_data[invoice] = {
+                    "store": store,
+                    "timestamp": timestamp,
+                    "amount": 0.0,
+                }
+
             try:
                 amount = float(row.get("total_amount", 0) or 0)
             except ValueError:
                 amount = 0.0
+            invoice_data[invoice]["amount"] += amount
 
-            store = row.get("store_id", store_id).strip() or store_id
-
-            transactions.append({
-                "transaction_id": invoice,
-                "store_id": store,
-                "timestamp": timestamp,
-                "basket_value_inr": amount,
-            })
+    for invoice, data in invoice_data.items():
+        transactions.append({
+            "transaction_id": invoice,
+            "store_id": data["store"],
+            "timestamp": data["timestamp"],
+            "basket_value_inr": round(data["amount"], 2),
+        })
 
     print(f"  Found {len(transactions)} unique transactions")
 

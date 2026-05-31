@@ -79,25 +79,34 @@ class ZoneDetector:
                     ))
 
     def _create_default_zones(self, camera_id: str):
-        """Create sensible default zones based on camera type."""
-        # These will be overridden once we have the actual store_layout.json
+        """Create sensible default zones based on camera type.
+        Stores normalized coordinates (0-1 range). Call set_frame_size() to scale."""
+        self._normalized = True
         if "ENTRY" in camera_id.upper():
-            # Entry camera: top = outside, bottom = inside
             self.zones = [
-                Zone("ENTRANCE", np.array([[0, 0.5], [1, 0.5], [1, 1], [0, 1]]) * 1920, camera_id),
+                Zone("ENTRANCE", np.array([[0, 0.5], [1, 0.5], [1, 1], [0, 1]], dtype=np.float32), camera_id),
             ]
         elif "FLOOR" in camera_id.upper():
-            # Floor camera: divide into quadrants as zones
             self.zones = [
-                Zone("SKINCARE", np.array([[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]]) * 1920, camera_id),
-                Zone("HAIRCARE", np.array([[0.5, 0], [1, 0], [1, 0.5], [0.5, 0.5]]) * 1920, camera_id),
-                Zone("FRAGRANCES", np.array([[0, 0.5], [0.5, 0.5], [0.5, 1], [0, 1]]) * 1920, camera_id),
-                Zone("MAKEUP", np.array([[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]]) * 1920, camera_id),
+                Zone("SKINCARE", np.array([[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]], dtype=np.float32), camera_id),
+                Zone("HAIRCARE", np.array([[0.5, 0], [1, 0], [1, 0.5], [0.5, 0.5]], dtype=np.float32), camera_id),
+                Zone("FRAGRANCES", np.array([[0, 0.5], [0.5, 0.5], [0.5, 1], [0, 1]], dtype=np.float32), camera_id),
+                Zone("MAKEUP", np.array([[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]], dtype=np.float32), camera_id),
             ]
         elif "BILLING" in camera_id.upper():
             self.zones = [
-                Zone("BILLING", np.array([[0, 0], [1, 0], [1, 1], [0, 1]]) * 1920, camera_id),
+                Zone("BILLING", np.array([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32), camera_id),
             ]
+
+    def set_frame_size(self, width: int, height: int):
+        """Scale normalized zone polygons to actual frame pixel dimensions."""
+        if getattr(self, '_normalized', False):
+            for zone in self.zones:
+                scaled = zone.polygon.copy()
+                scaled[:, 0] *= width
+                scaled[:, 1] *= height
+                zone.polygon = scaled
+            self._normalized = False
 
     def detect_zone(self, bbox: np.ndarray) -> Optional[str]:
         """

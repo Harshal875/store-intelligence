@@ -29,6 +29,7 @@ from app.anomalies import detect_anomalies
 from app.health import get_health
 from app.websocket import ws_manager
 from app.pos_loader import load_pos_from_csv
+from app.seeder import seed_events_from_pos
 
 logger = structlog.get_logger()
 
@@ -45,10 +46,13 @@ async def lifespan(app: FastAPI):
     pos_csv = os.getenv("POS_CSV_PATH", "/data/pos_transactions.csv")
     if os.path.exists(pos_csv):
         async with async_session() as db:
-            from app.pos_loader import load_pos_from_csv
             count = await load_pos_from_csv(pos_csv, db)
             if count:
                 logger.info("pos_autoloaded", count=count)
+            # Seed plausible detection events from POS data (skips if events exist)
+            seed_count = await seed_events_from_pos(pos_csv, "ST1008", db)
+            if seed_count:
+                logger.info("events_seeded_from_pos", count=seed_count)
 
     yield
     logger.info("shutting_down")
@@ -149,9 +153,6 @@ async def ingest(request: IngestRequest, db: AsyncSession = Depends(get_db)):
 
 
 # ─── POS Data Loading ─────────────────────────────────────────────────────────
-
-class POSLoadRequest(BaseModel):
-    transactions: list[dict]
 
 from pydantic import BaseModel as _BaseModel
 

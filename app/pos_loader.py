@@ -21,39 +21,48 @@ async def load_pos_from_csv(csv_path: str, db: AsyncSession) -> int:
 
     loaded = 0
     seen = set()
+    # Aggregate total_amount per invoice (CSV has multiple line items per invoice)
+    invoice_data: dict[str, dict] = {}
 
     try:
         with open(csv_path, "r", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 invoice = row.get("invoice_number", "").strip()
-                if not invoice or invoice in seen:
+                if not invoice:
                     continue
-                seen.add(invoice)
 
-                date_str = row.get("order_date", "").strip()
-                time_str = row.get("order_time", "").strip()
-                try:
-                    dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M:%S")
-                    dt = dt.replace(tzinfo=timezone.utc)
-                except ValueError:
-                    continue
+                if invoice not in invoice_data:
+                    date_str = row.get("order_date", "").strip()
+                    time_str = row.get("order_time", "").strip()
+                    try:
+                        dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M:%S")
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        continue
+
+                    store_id = row.get("store_id", "ST1008").strip() or "ST1008"
+                    invoice_data[invoice] = {
+                        "timestamp": dt,
+                        "store_id": store_id,
+                        "amount": 0.0,
+                    }
 
                 try:
                     amount = float(row.get("total_amount", 0) or 0)
                 except ValueError:
                     amount = 0.0
+                invoice_data[invoice]["amount"] += amount
 
-                store_id = row.get("store_id", "ST1008").strip() or "ST1008"
-
-                txn = POSTransaction(
-                    transaction_id=invoice,
-                    store_id=store_id,
-                    timestamp=dt,
-                    basket_value_inr=amount,
-                )
-                db.add(txn)
-                loaded += 1
+        for invoice, data in invoice_data.items():
+            txn = POSTransaction(
+                transaction_id=invoice,
+                store_id=data["store_id"],
+                timestamp=data["timestamp"],
+                basket_value_inr=round(data["amount"], 2),
+            )
+            db.add(txn)
+            loaded += 1
 
         if loaded:
             await db.commit()

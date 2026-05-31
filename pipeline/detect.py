@@ -117,6 +117,9 @@ class DetectionPipeline:
         else:
             self.entry_line_y = self.frame_height * 0.5  # Default mid-frame
 
+        # Scale zone polygons to actual frame dimensions
+        self.zone_detector.set_frame_size(self.frame_width, self.frame_height)
+
         print(f"[START] Processing {self.video_path}")
         print(f"  Store: {self.store_id} | Camera: {self.camera_id}")
         print(f"  Resolution: {self.frame_width}x{self.frame_height} @ {self.fps}fps")
