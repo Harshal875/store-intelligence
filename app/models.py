@@ -52,8 +52,9 @@ class StoreEvent(BaseModel):
     @field_validator("store_id")
     @classmethod
     def validate_store_id(cls, v: str) -> str:
-        if not v.startswith("STORE_"):
-            raise ValueError("store_id must start with 'STORE_'")
+        # Accept both STORE_XXX and ST#### formats
+        if not (v.startswith("STORE_") or v.startswith("ST")):
+            raise ValueError("store_id must start with 'STORE_' or 'ST'")
         return v
 
 

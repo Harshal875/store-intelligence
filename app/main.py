@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import os
 
 import structlog
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
@@ -14,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import init_db, get_db, check_db_health
+from app.database import async_session
 from app.middleware import RequestLoggingMiddleware, setup_logging
 from app.models import (
     IngestRequest, IngestResult, StoreMetrics,
@@ -26,6 +28,7 @@ from app.heatmap import compute_heatmap
 from app.anomalies import detect_anomalies
 from app.health import get_health
 from app.websocket import ws_manager
+from app.pos_loader import load_pos_from_csv
 
 logger = structlog.get_logger()
 
@@ -37,6 +40,16 @@ async def lifespan(app: FastAPI):
     logger.info("starting_application")
     await init_db()
     logger.info("database_initialized")
+
+    # Auto-load POS transactions if CSV is present in /data
+    pos_csv = os.getenv("POS_CSV_PATH", "/data/pos_transactions.csv")
+    if os.path.exists(pos_csv):
+        async with async_session() as db:
+            from app.pos_loader import load_pos_from_csv
+            count = await load_pos_from_csv(pos_csv, db)
+            if count:
+                logger.info("pos_autoloaded", count=count)
+
     yield
     logger.info("shutting_down")
 
@@ -133,6 +146,59 @@ async def ingest(request: IngestRequest, db: AsyncSession = Depends(get_db)):
             )
 
     return result
+
+
+# ─── POS Data Loading ─────────────────────────────────────────────────────────
+
+class POSLoadRequest(BaseModel):
+    transactions: list[dict]
+
+from pydantic import BaseModel as _BaseModel
+
+class _POSItem(_BaseModel):
+    transaction_id: str
+    store_id: str
+    timestamp: str
+    basket_value_inr: float
+
+class _POSBatch(_BaseModel):
+    transactions: list[_POSItem]
+
+@app.post("/pos/load")
+async def load_pos(request: _POSBatch, db: AsyncSession = Depends(get_db)):
+    """Load POS transactions in bulk (idempotent by transaction_id)."""
+    from app.database import POSTransaction
+    from sqlalchemy import select
+    
+    loaded = 0
+    skipped = 0
+    
+    # Check existing
+    ids = [t.transaction_id for t in request.transactions]
+    existing_q = select(POSTransaction.transaction_id).where(
+        POSTransaction.transaction_id.in_(ids)
+    )
+    result = await db.execute(existing_q)
+    existing = set(row[0] for row in result.fetchall())
+    
+    for item in request.transactions:
+        if item.transaction_id in existing:
+            skipped += 1
+            continue
+        ts = datetime.fromisoformat(item.timestamp.replace("Z", "+00:00"))
+        txn = POSTransaction(
+            transaction_id=item.transaction_id,
+            store_id=item.store_id,
+            timestamp=ts,
+            basket_value_inr=item.basket_value_inr,
+        )
+        db.add(txn)
+        loaded += 1
+    
+    if loaded:
+        await db.commit()
+    
+    return {"loaded": loaded, "skipped": skipped}
 
 
 # ─── Store Metrics ────────────────────────────────────────────────────────────

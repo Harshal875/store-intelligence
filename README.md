@@ -7,12 +7,21 @@ Real-time store analytics from CCTV footage. Processes raw camera feeds through 
 ```bash
 git clone <repo-url> && cd store-intelligence
 cp .env.example .env
+
+# Place dataset files in ./data/ before this step:
+#   ./data/clips/CAM 1.mp4 ... CAM 5.mp4
+#   ./data/pos_transactions.csv
+#   ./data/store_layout.xlsx
+
 docker compose up -d                    # Starts API + PostgreSQL + Redis
-# Place video clips in ./data/ directory
-docker compose --profile pipeline run pipeline  # Runs detection on clips
+# POS transactions are auto-loaded on startup from ./data/pos_transactions.csv
+
+docker compose --profile pipeline run pipeline  # Runs detection on all clips
 ```
 
 The API is now live at `http://localhost:8000`. Dashboard at `http://localhost:8000/dashboard`.
+
+Store ID for Brigade Road Bangalore: **ST1008**
 
 ## Architecture
 
@@ -81,21 +90,13 @@ pytest --cov=app --cov-report=term-missing
 
 ```bash
 # Check health
-curl http://localhost:8000/health | jq
+curl http://localhost:8000/health | python -m json.tool
 
-# Get store metrics
-curl http://localhost:8000/stores/STORE_BLR_002/metrics | jq
-
-# Get conversion funnel
-curl http://localhost:8000/stores/STORE_BLR_002/funnel | jq
-
-# Get anomalies
-curl http://localhost:8000/stores/STORE_BLR_002/anomalies | jq
-
-# Ingest events manually
-curl -X POST http://localhost:8000/events/ingest \
-  -H "Content-Type: application/json" \
-  -d '{"events": [{"event_id": "550e8400-e29b-41d4-a716-446655440000", "store_id": "STORE_BLR_002", "camera_id": "CAM_ENTRY_01", "visitor_id": "VIS_abc123", "event_type": "ENTRY", "timestamp": "2026-03-03T14:22:10Z", "zone_id": null, "dwell_ms": 0, "is_staff": false, "confidence": 0.92, "metadata": {"queue_depth": null, "sku_zone": null, "session_seq": 1}}]}'
+# Brigade Road store metrics (store_id = ST1008)
+curl http://localhost:8000/stores/ST1008/metrics | python -m json.tool
+curl http://localhost:8000/stores/ST1008/funnel  | python -m json.tool
+curl http://localhost:8000/stores/ST1008/heatmap | python -m json.tool
+curl http://localhost:8000/stores/ST1008/anomalies | python -m json.tool
 ```
 
 ## Configuration

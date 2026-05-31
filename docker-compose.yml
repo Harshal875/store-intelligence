@@ -40,6 +40,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://store_intel:store_intel_2026@postgres:5432/store_intelligence
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      POS_CSV_PATH: /data/pos_transactions.csv
+    volumes:
+      - ./data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy
