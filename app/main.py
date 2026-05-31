@@ -143,6 +143,16 @@ async def ingest(request: IngestRequest, db: AsyncSession = Depends(get_db)):
 
     result = await ingest_events(request.events, db)
 
+    # Log event_count per spec requirement (structured logging)
+    import structlog as _sl
+    _sl.get_logger().info(
+        "ingest_summary",
+        event_count=len(request.events),
+        accepted=result.accepted,
+        rejected=result.rejected,
+        duplicates=result.duplicates,
+    )
+
     # Broadcast to WebSocket clients
     for event in request.events:
         if not event.is_staff:
