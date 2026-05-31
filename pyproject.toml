@@ -5,7 +5,8 @@ addopts = "--tb=short -v"
 
 [tool.coverage.run]
 source = ["app"]
-omit = ["tests/*", "pipeline/*"]
+omit = ["tests/*", "pipeline/*", "app/seeder.py", "app/pos_loader.py"]
+concurrency = ["thread", "greenlet"]
 
 [tool.coverage.report]
 show_missing = true

@@ -1,5 +1,9 @@
 """Shared test fixtures for Store Intelligence API tests."""
 
+# MUST be set before any app imports so _JSON_TYPE resolves to JSON (not JSONB)
+import os
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+
 import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
